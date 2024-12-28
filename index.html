@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image to Editable Content</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Image to Editable Content</h1>
+
+      <!-- Upload Form -->
+      <div class="form-container">
+        <input
+          type="file"
+          id="fileInput"
+          accept=".pdf, .jpg, .jpeg, .png, .bmp, .tiff"
+          required />
+        <button id="uploadButton">Upload</button>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Left Panel: Original Preview -->
+        <div class="panel">
+          <h3>Original Document</h3>
+          <div id="originalPreview" class="panel-content">
+            <span>No document uploaded</span>
+          </div>
+        </div>
+
+        <!-- Right Panel: Markdown Output -->
+        <div class="panel">
+          <h3>Extracted Markdown</h3>
+          <div id="markdownOutput" class="panel-content">
+            <span>No Markdown available</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const uploadButton = document.getElementById('uploadButton');
+      const fileInput = document.getElementById('fileInput');
+      const originalPreview = document.getElementById('originalPreview');
+      const markdownOutput = document.getElementById('markdownOutput');
+
+      uploadButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const file = fileInput.files[0];
+
+        if (!file) {
+          alert('Please select a file');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Show the uploaded document in the preview
+        if (file.type.startsWith('image/')) {
+          const imgURL = URL.createObjectURL(file);
+          originalPreview.innerHTML = `<img src="${imgURL}" alt="Uploaded Document" />`;
+        } else if (file.type === 'application/pdf') {
+          const pdfURL = URL.createObjectURL(file);
+          originalPreview.innerHTML = `<iframe src="${pdfURL}" frameborder="0"></iframe>`;
+        } else {
+          originalPreview.innerHTML = `<span class="text-danger">Unsupported file type</span>`;
+        }
+
+        // Clear previous Markdown output
+        markdownOutput.innerHTML = '<span>Processing...</span>';
+
+        try {
+          // Send the file to the backend
+          const response = await fetch('http://127.0.0.1:8000/process', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            if (data.markdown) {
+              markdownOutput.innerText = data.markdown;
+            } else {
+              markdownOutput.innerHTML = '<span>No Markdown available</span>';
+            }
+          } else {
+            markdownOutput.innerHTML = `<span>Error: ${data.error}</span>`;
+          }
+        } catch (err) {
+          markdownOutput.innerHTML = `<span>Error: ${err.message}</span>`;
+        }
+      });
+    </script>
+  </body>
+</html>
