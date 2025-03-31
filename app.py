@@ -1,6 +1,7 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import os
 import asyncio
 from PIL import Image
@@ -8,9 +9,18 @@ from pyzerox import zerox
 import shutil
 import uuid
 from dotenv import load_dotenv
+from datetime import datetime
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 app = FastAPI()
 
@@ -85,3 +95,36 @@ async def process_file(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error during processing: {e}")
         return JSONResponse({"error": "Processing failed"}, status_code=500)
+
+# Feedback model
+class Feedback(BaseModel):
+    feedback: str
+    markdown: str
+
+# Feedback endpoint
+@app.post("/feedback")
+async def submit_feedback(feedback: Feedback):
+    try:
+        # Log feedback to terminal
+        logging.info("=== New Feedback Received ===")
+        logging.info(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(f"Feedback: {feedback.feedback}")
+        logging.info("=== End of Feedback ===\n")
+        
+        # Create feedback directory if it doesn't exist
+        feedback_dir = "./feedback"
+        os.makedirs(feedback_dir, exist_ok=True)
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        feedback_file = os.path.join(feedback_dir, f"feedback_{timestamp}.txt")
+        
+        # Save feedback to file
+        with open(feedback_file, "w", encoding="utf-8") as f:
+            f.write(f"Feedback: {feedback.feedback}\n\n")
+            f.write(f"Markdown Content:\n{feedback.markdown}\n")
+        
+        return {"message": "Feedback submitted successfully"}
+    except Exception as e:
+        logging.error(f"Error processing feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

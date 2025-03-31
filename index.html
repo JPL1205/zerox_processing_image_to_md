@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="container">
-      <h1>Image to Editable Content</h1>
+      <h1>Protocol Generation</h1>
 
       <!-- Upload Form -->
       <div class="form-container">
@@ -24,7 +24,7 @@
       <div class="main-content">
         <!-- Left Panel: Original Preview -->
         <div class="panel">
-          <h3>Original Document</h3>
+          <h3>Uploaded File</h3>
           <div id="originalPreview" class="panel-content">
             <span>No document uploaded</span>
           </div>
@@ -32,11 +32,30 @@
 
         <!-- Right Panel: Markdown Output -->
         <div class="panel">
-          <h3>Extracted Markdown</h3>
+          <h3>Generated Protocol</h3>
           <div id="markdownOutput" class="panel-content">
             <span>No Markdown available</span>
           </div>
+          <div id="loadingSpinner" class="loading-spinner hidden">
+            <div class="spinner"></div>
+            <div class="loading-text">Initializing...</div>
+          </div>
         </div>
+      </div>
+
+      <!-- Feedback Section -->
+      <div class="feedback-section">
+        <h3>Feedback</h3>
+        <div class="feedback-form">
+          <textarea
+            id="feedbackInput"
+            placeholder="Please provide your feedback about the extracted content..."></textarea>
+          <div class="feedback-buttons">
+            <button id="submitFeedback">Submit Feedback</button>
+            <button id="clearFeedback">Clear</button>
+          </div>
+        </div>
+        <div id="feedbackStatus" class="feedback-status"></div>
       </div>
     </div>
 
@@ -45,6 +64,18 @@
       const fileInput = document.getElementById('fileInput');
       const originalPreview = document.getElementById('originalPreview');
       const markdownOutput = document.getElementById('markdownOutput');
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      const loadingText = document.querySelector('.loading-text');
+      const feedbackInput = document.getElementById('feedbackInput');
+      const submitFeedback = document.getElementById('submitFeedback');
+      const clearFeedback = document.getElementById('clearFeedback');
+      const feedbackStatus = document.getElementById('feedbackStatus');
+
+      // Function to update loading status with delay
+      async function updateLoadingStatus(message, delay = 500) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        loadingText.textContent = message;
+      }
 
       uploadButton.addEventListener('click', async (event) => {
         event.preventDefault();
@@ -69,30 +100,85 @@
           originalPreview.innerHTML = `<span class="text-danger">Unsupported file type</span>`;
         }
 
-        // Clear previous Markdown output
-        markdownOutput.innerHTML = '<span>Processing...</span>';
+        // Show loading spinner and hide markdown output
+        markdownOutput.innerHTML = '';
+        loadingSpinner.classList.remove('hidden');
+        await updateLoadingStatus('Preparing file...', 0);
 
         try {
+          // Update status before sending to backend
+          await updateLoadingStatus('Sending file to server...');
+
           // Send the file to the backend
           const response = await fetch('http://127.0.0.1:8000/process', {
             method: 'POST',
             body: formData,
           });
 
+          await updateLoadingStatus('Processing document...');
+
           const data = await response.json();
 
           if (response.ok) {
+            await updateLoadingStatus('Generating protocol...');
             if (data.markdown) {
               markdownOutput.innerText = data.markdown;
+              await updateLoadingStatus('Protocol generated successfully!');
+              // Hide spinner after a short delay
+              setTimeout(() => {
+                loadingSpinner.classList.add('hidden');
+              }, 1000);
             } else {
               markdownOutput.innerHTML = '<span>No Markdown available</span>';
+              loadingSpinner.classList.add('hidden');
             }
           } else {
             markdownOutput.innerHTML = `<span>Error: ${data.error}</span>`;
+            loadingSpinner.classList.add('hidden');
           }
         } catch (err) {
           markdownOutput.innerHTML = `<span>Error: ${err.message}</span>`;
+          loadingSpinner.classList.add('hidden');
         }
+      });
+
+      // Add feedback handling
+      submitFeedback.addEventListener('click', async () => {
+        const feedback = feedbackInput.value.trim();
+        if (!feedback) {
+          feedbackStatus.innerHTML =
+            '<span class="text-danger">Please enter some feedback</span>';
+          return;
+        }
+
+        try {
+          const response = await fetch('http://127.0.0.1:8000/feedback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              feedback: feedback,
+              markdown: markdownOutput.innerText,
+            }),
+          });
+
+          const data = await response.json();
+          if (response.ok) {
+            feedbackStatus.innerHTML =
+              '<span class="text-success">Thank you for your feedback!</span>';
+            feedbackInput.value = '';
+          } else {
+            feedbackStatus.innerHTML = `<span class="text-danger">Error: ${data.error}</span>`;
+          }
+        } catch (err) {
+          feedbackStatus.innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
+        }
+      });
+
+      clearFeedback.addEventListener('click', () => {
+        feedbackInput.value = '';
+        feedbackStatus.innerHTML = '';
       });
     </script>
   </body>
